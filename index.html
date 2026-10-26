@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#1f6f5c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="旅程">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <title>旅程共編</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="title-wrap">
+      <h1 id="tripName">旅程</h1>
+      <span id="tripRange" class="muted"></span>
+    </div>
+    <button id="syncBtn" class="sync" data-state="local" aria-label="立即同步">
+      <span class="dot"></span><span id="syncText">本機</span>
+    </button>
+  </header>
+
+  <main>
+    <!-- 地圖總覽 -->
+    <section id="view-map" class="view active">
+      <div id="map"></div>
+      <div id="mapPlaceholder" class="map-placeholder hidden"></div>
+      <div class="chips" id="mapChips"></div>
+      <div class="map-card hidden" id="mapCard"></div>
+    </section>
+
+    <!-- 每日行程 -->
+    <section id="view-plan" class="view">
+      <div class="day-tabs" id="dayTabs"></div>
+      <div class="day-head" id="dayHead"></div>
+      <ol class="spot-list" id="spotList"></ol>
+      <div class="list-pad"></div>
+      <button class="fab" id="addBtn">＋ 新增地點</button>
+    </section>
+
+    <!-- 訂位 -->
+    <section id="view-book" class="view">
+      <div class="stats" id="bookStats"></div>
+      <div id="bookList"></div>
+    </section>
+
+    <!-- 設定 -->
+    <section id="view-settings" class="view">
+      <form id="settingsForm" class="form" autocomplete="off">
+        <h2>旅程</h2>
+        <label>旅程名稱<input name="tripName" required></label>
+        <div class="grid2">
+          <label>開始日期<input name="startDate" type="date" required></label>
+          <label>天數<input name="dayCount" type="number" min="1" max="60" required></label>
+        </div>
+
+        <h2>我</h2>
+        <label>你的名字<input name="myName" placeholder="會記錄在「更新者」欄"></label>
+
+        <h2>連線</h2>
+        <label>Apps Script 網址
+          <input name="scriptUrl" placeholder="https://script.google.com/macros/s/…/exec">
+        </label>
+        <label>Google 地圖 API 金鑰<input name="mapsKey" placeholder="AIza…"></label>
+        <button type="submit" class="btn primary">儲存設定</button>
+
+        <h2>共編</h2>
+        <div class="btn-row">
+          <button type="button" class="btn" id="shareBtn">複製邀請連結</button>
+          <a class="btn" id="sheetLink" target="_blank" rel="noopener">開啟試算表</a>
+        </div>
+        <p class="hint">邀請連結內含連線設定，同伴點開就能一起編輯；請只分享給同行的人。</p>
+
+        <h2>其他</h2>
+        <div class="btn-row">
+          <button type="button" class="btn" id="sampleBtn">載入範例資料</button>
+          <button type="button" class="btn danger" id="resetBtn">清除本機資料</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button data-view="map" class="on"><span class="ico">◎</span>地圖</button>
+    <button data-view="plan"><span class="ico">☰</span>行程</button>
+    <button data-view="book"><span class="ico">✓</span>訂位</button>
+    <button data-view="settings"><span class="ico">⚙</span>設定</button>
+  </nav>
+
+  <!-- 地點編輯 -->
+  <dialog id="editor">
+    <form id="spotForm" class="form" method="dialog" autocomplete="off">
+      <div class="dlg-head">
+        <button type="button" class="link" data-close>取消</button>
+        <b id="editorTitle">地點</b>
+        <button type="submit" class="link strong">儲存</button>
+      </div>
+      <div class="dlg-body">
+        <div class="search-box" id="searchBox">
+          <div class="search-row">
+            <input id="placeQuery" placeholder="搜尋 Google 地點，自動帶入地址與營業時間">
+            <button type="button" class="btn" id="placeSearchBtn">搜尋</button>
+          </div>
+          <div id="placeResults" class="place-results"></div>
+        </div>
+
+        <label>名稱<input name="name" required></label>
+        <label>行程關鍵字<input name="keyword" placeholder="這次去做什麼，例：花火大會"></label>
+        <p class="hint">地圖上的標記會顯示前四個字</p>
+        <div class="grid2">
+          <label>哪一天<select name="day" id="daySelect"></select></label>
+          <label>類型<select name="type" id="typeSelect"></select></label>
+        </div>
+        <div class="grid2">
+          <label>預計抵達<input name="time" type="time"></label>
+          <label>停留（分鐘）<input name="duration" type="number" min="0" step="15"></label>
+        </div>
+        <label>地址<input name="address" id="addrInput"></label>
+        <p class="hint" id="coordHint"></p>
+
+        <label>營業時間
+          <textarea name="hours" rows="4" placeholder="每行一天，例：&#10;星期一: 休息&#10;星期二: 11:00 – 21:00"></textarea>
+        </label>
+        <p class="hint" id="hoursHint"></p>
+
+        <fieldset>
+          <legend>訂位</legend>
+          <div class="grid2">
+            <label>狀態<select name="bookStatus" id="bookSelect"></select></label>
+            <label>人數<input name="bookPeople" type="number" min="0"></label>
+          </div>
+          <label>訂位時間<input name="bookTime" type="datetime-local"></label>
+          <label>訂位編號<input name="bookNo"></label>
+          <label>聯絡電話 / 訂位連結<input name="bookContact"></label>
+          <label>費用<input name="cost" placeholder="例：¥3,000 / 人"></label>
+        </fieldset>
+
+        <label>備註<textarea name="note" rows="3"></textarea></label>
+        <p class="hint" id="metaHint"></p>
+        <div class="btn-row">
+          <a class="btn" id="navLink" target="_blank" rel="noopener">在 Google 地圖開啟</a>
+          <button type="button" class="btn danger" id="deleteBtn">刪除地點</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status"></div>
+
+  <script src="config.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
